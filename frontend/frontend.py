@@ -153,7 +153,9 @@ if st.session_state.page == "Home":
                         st.markdown(f"""
                         <div class="glass-card">
                             <h4 style="color:#f8fafc;">{row['name']}</h4>
-                            <p style="font-size:0.9rem;">{row['description'][:120]}...</p>
+                            <p style="font-size:0.9rem;">
+                                {row.get('description', row.get('summary', ''))[:120]}...
+                            </p>
                             <a href="{row['url']}" target="_blank" style="color:#818cf8; font-weight:600;">
                                 View Details →
                             </a>
