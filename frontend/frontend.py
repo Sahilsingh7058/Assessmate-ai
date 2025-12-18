@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import time
+import requests
 
 st.set_page_config(
     page_title="AssessMate AI",
@@ -11,49 +10,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+API_URL = "https://assessmate-ai.onrender.com/recommend"
+
 if 'page' not in st.session_state:
     st.session_state.page = 'Home'
 
 def navigate_to(page):
     st.session_state.page = page
-
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv("../data/shl_catalog.csv")
-        df["description"] = df["description"].fillna("")
-        return df
-    except FileNotFoundError:
-        data = {
-            "name": [
-                "Java Full Stack Assessment", "Python Data Science Test", 
-                "Leadership & Management Style", "Frontend React Challenge",
-                "Communication Skills Inventory", "Logical Reasoning Advanced",
-                "Cloud Architecture (AWS) Exam", "Cybersecurity Basics"
-            ],
-            "url": ["#"] * 8,
-            "description": [
-                "Java, Spring boot, SQL and backend logic.", 
-                "Python, Pandas, Scikit-learn and statistics.",
-                "Managerial skills, conflict resolution, leadership.",
-                "React.js, CSS, HTML, Javascript hooks.",
-                "Verbal communication, email etiquette, soft skills.",
-                "Abstract reasoning, pattern recognition, IQ test.",
-                "AWS services, cloud infrastructure, deployment.",
-                "Network security, ethical hacking basics."
-            ]
-        }
-        return pd.DataFrame(data)
-
-catalog = load_data()
-vectorizer = TfidfVectorizer(stop_words="english")
-assessment_vectors = vectorizer.fit_transform(catalog["description"])
-
-def recommend(query, top_k=4):
-    query_vector = vectorizer.transform([query])
-    similarities = cosine_similarity(query_vector, assessment_vectors)[0]
-    top_indices = similarities.argsort()[-top_k:][::-1]
-    return catalog.iloc[top_indices][["name", "url", "description"]]
 
 st.markdown("""
 <style>
@@ -74,7 +37,7 @@ st.markdown("""
         font-family: 'Plus Jakarta Sans', sans-serif;
         color: var(--text-primary);
     }
-    
+
     header {visibility: hidden;}
     .stApp > header {display: none;}
 
@@ -101,13 +64,10 @@ st.markdown("""
         transition: all 0.3s;
         width: 100%;
     }
+
     div.stButton > button:hover {
         background: rgba(99, 102, 241, 0.1);
         color: #818cf8;
-    }
-    div.stButton > button:active, div.stButton > button:focus {
-        background: rgba(99, 102, 241, 0.2);
-        color: white;
     }
 
     .glass-card {
@@ -119,6 +79,7 @@ st.markdown("""
         margin-bottom: 20px;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
+
     .glass-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -127,7 +88,7 @@ st.markdown("""
 
     h1, h2, h3 { color: white !important; }
     p { color: #94a3b8; }
-    
+
     .stTextArea textarea {
         background-color: rgba(15, 23, 42, 0.6) !important;
         color: #e2e8f0 !important;
@@ -138,10 +99,10 @@ st.markdown("""
 
 def render_navbar():
     col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
-    
+
     with col1:
         st.markdown('<div class="navbar-logo">⚡ AssessMate</div>', unsafe_allow_html=True)
-    
+
     with col2:
         if st.button("🏠 Home", use_container_width=True): navigate_to("Home")
     with col3:
@@ -150,7 +111,7 @@ def render_navbar():
         if st.button("💬 Community", use_container_width=True): navigate_to("Community")
     with col5:
         if st.button("⭐ Reviews", use_container_width=True): navigate_to("Reviews")
-    
+
     st.markdown("<div style='height: 2px; background: rgba(255,255,255,0.05); margin-bottom: 30px; margin-top: 10px;'></div>", unsafe_allow_html=True)
 
 render_navbar()
@@ -169,24 +130,31 @@ if st.session_state.page == "Home":
 
     col1, col2, col3 = st.columns([1, 6, 1])
     with col2:
-        query = st.text_area("Job Description", placeholder="Enter job requirements here...", height=120, label_visibility="collapsed")
-        
+        query = st.text_area(
+            "Job Description",
+            placeholder="Enter job requirements here...",
+            height=120,
+            label_visibility="collapsed"
+        )
+
         if st.button("🚀 Analyze & Recommend", use_container_width=True):
             if query:
                 with st.spinner("Analyzing semantics..."):
                     time.sleep(0.5)
-                    results = recommend(query)
-                
+                    response = requests.post(API_URL, json={"query": query})
+                    results = pd.DataFrame(response.json()["recommended_assessments"])
+
                 st.markdown("### 🎯 Top Recommendations")
                 r_col1, r_col2 = st.columns(2)
-                for idx, (i, row) in enumerate(results.iterrows()):
+
+                for idx, row in results.iterrows():
                     target = r_col1 if idx % 2 == 0 else r_col2
                     with target:
                         st.markdown(f"""
                         <div class="glass-card">
-                            <h4 style="color:#f8fafc; margin-bottom:5px;">{row['name']}</h4>
-                            <p style="font-size:0.9rem; margin-bottom:15px;">{row['description'][:120]}...</p>
-                            <a href="{row['url']}" target="_blank" style="color:#818cf8; text-decoration:none; font-weight:600;">
+                            <h4 style="color:#f8fafc;">{row['name']}</h4>
+                            <p style="font-size:0.9rem;">{row['description'][:120]}...</p>
+                            <a href="{row['url']}" target="_blank" style="color:#818cf8; font-weight:600;">
                                 View Details →
                             </a>
                         </div>
